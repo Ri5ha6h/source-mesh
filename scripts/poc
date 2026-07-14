@@ -22,6 +22,7 @@ case "${1:-}" in
   seed) require_docker; docker compose $profiles run --rm api pnpm db:seed ;;
   test)
     require_docker
+    docker compose $profiles run --rm api pnpm db:seed
     docker compose --profile test build node-tests python-worker-tests dummy-boundary-tests browser-tests
     docker compose --profile test run --rm node-tests pnpm format:check
     docker compose --profile test run --rm node-tests pnpm lint
@@ -33,10 +34,10 @@ case "${1:-}" in
     ;;
   audit)
     require_docker
-    docker build --target api-production -t source-mesh-api:phase1 .
-    docker build --target web-production -t source-mesh-web:phase1 .
-    docker build --file apps/worker-python/Dockerfile --target production -t source-mesh-worker:phase1 .
-    docker build --file apps/dummy-services/Dockerfile --target production -t source-mesh-dummy:phase1 .
+    docker build --target api-production -t source-mesh-api:poc .
+    docker build --target web-production -t source-mesh-web:poc .
+    docker build --file apps/worker-python/Dockerfile --target production -t source-mesh-worker:poc .
+    docker build --file apps/dummy-services/Dockerfile --target production -t source-mesh-dummy:poc .
     docker compose --profile security build dependency-audit
     docker compose --profile security run --rm dependency-audit
     docker compose --profile security run --rm secret-scan

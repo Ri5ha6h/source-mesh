@@ -9,6 +9,7 @@ dist
 node_modules
 **/node_modules
 phase
+PLAN.md
 playwright-report
 research
 test-results

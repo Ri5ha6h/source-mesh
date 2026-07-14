@@ -5,3 +5,15 @@ useDefault = true
 description = "Documented non-sensitive POC placeholders"
 regexTarget = "match"
 regexes = ['''dummy-source-mesh-client-secret''', '''replace-with-at-least-32-dummy-characters''']
+
+[[allowlists]]
+description = "Ignored local, dependency, and generated paths"
+paths = [
+  '''(^|/)artifacts/''',
+  '''(^|/)design/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)phase/''',
+  '''(^|/)research/''',
+  '''(^|/)\.pnpm-store/''',
+  '''(^|/)PLAN\.md$''',
+]

@@ -14,12 +14,12 @@ on:
         description: Phase being accepted
         required: true
         type: string
-        default: "1"
+        default: '1'
   pull_request:
     branches: [main]
   push:
     branches:
-      - "codex/**"
+      - 'codex/**'
 
 permissions:
   contents: read
