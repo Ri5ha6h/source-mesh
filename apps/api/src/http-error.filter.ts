@@ -2,6 +2,7 @@ import { ArgumentsHost, Catch, HttpException, type ExceptionFilter, Logger } fro
 import {
   AuthenticationError,
   AuthorizationError,
+  ConfigurationError,
   ContextMismatchError,
 } from '@source-mesh/contracts';
 import type { FastifyReply } from 'fastify';
@@ -23,6 +24,10 @@ export class HttpErrorFilter implements ExceptionFilter {
     }
     if (error instanceof ContextMismatchError) {
       return reply.status(404).send({ error: 'workspace_not_found' });
+    }
+    if (error instanceof ConfigurationError) {
+      const status = error.reason.startsWith('duplicate_') ? 409 : 422;
+      return reply.status(status).send({ error: error.reason });
     }
     if (error instanceof HttpException) {
       return reply.status(error.getStatus()).send(error.getResponse());

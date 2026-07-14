@@ -11,6 +11,7 @@ x-app-environment: &app-environment
   SESSION_SECRET: replace-with-at-least-32-dummy-characters
   API_INTERNAL_URL: http://api:4000
   NEXT_PUBLIC_API_URL: http://localhost:4000
+  SECRET_STORE_PATH: /run/source-mesh/secrets
 
 services:
   postgres:
@@ -89,6 +90,22 @@ services:
       retries: 40
     security_opt: [no-new-privileges:true]
 
+  secret-store-init:
+    image: node:24-bookworm-slim@sha256:39a4259b6f744868a8228742ad45aa3026f97302e5eec2fa4a38b30ca0a66e12
+    profiles: [infra, test]
+    user: root
+    command:
+      - node
+      - -e
+      - >-
+        const fs=require('node:fs');
+        const values={'acme-europe/msc':'dummy-msc-placeholder','northstar-logistics/maersk':'dummy-maersk-placeholder'};
+        for(const [name,value] of Object.entries(values)){const path='/secrets/'+name;fs.mkdirSync(require('node:path').dirname(path),{recursive:true,mode:0o700});fs.writeFileSync(path,value,{mode:0o600});fs.chownSync(path,65532,65532)}
+        fs.chownSync('/secrets/acme-europe',65532,65532);fs.chownSync('/secrets/northstar-logistics',65532,65532);fs.chownSync('/secrets',65532,65532);
+    volumes:
+      - secret-store:/secrets
+    security_opt: [no-new-privileges:true]
+
   api:
     build:
       context: .
@@ -101,12 +118,14 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       keycloak: { condition: service_healthy }
+      secret-store-init: { condition: service_completed_successfully }
     volumes:
       - ./apps/api/src:/workspace/apps/api/src
       - ./apps/api/test:/workspace/apps/api/test
       - ./packages/contracts/src:/workspace/packages/contracts/src
       - ./packages/database/drizzle:/workspace/packages/database/drizzle
       - ./packages/database/src:/workspace/packages/database/src
+      - secret-store:/run/source-mesh/secrets
     ports:
       - '127.0.0.1:4000:4000'
     healthcheck:
@@ -198,6 +217,9 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       keycloak: { condition: service_healthy }
+      secret-store-init: { condition: service_completed_successfully }
+    volumes:
+      - secret-store:/run/source-mesh/secrets
     security_opt: [no-new-privileges:true]
 
   python-worker-tests:
@@ -265,7 +287,8 @@ services:
       - --scanners=vuln,misconfig,secret
       - --severity=UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
       - --exit-code=1
-      - --skip-dirs=.git,node_modules,artifacts,design,research,phase
+      - --skip-dirs=.git,node_modules,.pnpm-store,artifacts,design,research,phase
+      - --skip-files=PLAN.md
       - /workspace
     volumes:
       - ./:/workspace:ro
@@ -278,7 +301,7 @@ services:
     entrypoint: [/bin/sh, -ec]
     command:
       - >-
-        for image in source-mesh-api:phase1 source-mesh-web:phase1 source-mesh-worker:phase1 source-mesh-dummy:phase1; do
+        for image in source-mesh-api:poc source-mesh-web:poc source-mesh-worker:poc source-mesh-dummy:poc; do
           trivy image --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 1 "$$image";
         done
     volumes:
@@ -289,7 +312,7 @@ services:
   sbom:
     image: anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6
     profiles: [security]
-    command: [dir:/workspace, -o, spdx-json=/artifacts/source-mesh-phase-1.spdx.json]
+    command: [dir:/workspace, -o, spdx-json=/artifacts/source-mesh-poc.spdx.json]
     volumes:
       - ./:/workspace:ro
       - ./artifacts:/artifacts
@@ -300,4 +323,5 @@ volumes:
   redis-data:
   minio-data:
   keycloak-data:
+  secret-store:
   trivy-cache:

@@ -1,6 +1,15 @@
 import { createDatabase } from '../src/index.js';
+import { notInArray } from 'drizzle-orm';
 import {
+  auditEvents,
+  crawlSchedules,
+  deliveryDestinations,
+  invitations,
   platformRoleAssignments,
+  providerConfigurations,
+  secretReferences,
+  tenantDomains,
+  tenantLimits,
   tenants,
   userMemberships,
   userPreferences,
@@ -111,6 +120,113 @@ await db.transaction(async (tx) => {
   await tx.insert(workspaceNotes).values([
     { tenantId: acmeId, message: 'Acme synthetic workspace is isolated.' },
     { tenantId: northstarId, message: 'Northstar synthetic workspace is isolated.' },
+  ]);
+
+  const acmeSecretId = '30000000-0000-4000-8000-000000000001';
+  const northstarSecretId = '30000000-0000-4000-8000-000000000002';
+  const acmeProviderId = '40000000-0000-4000-8000-000000000001';
+  const northstarProviderId = '40000000-0000-4000-8000-000000000002';
+
+  await tx.delete(tenants).where(notInArray(tenants.id, [acmeId, northstarId]));
+  await tx.delete(auditEvents);
+  await tx.delete(invitations);
+  await tx.delete(deliveryDestinations);
+  await tx.delete(crawlSchedules);
+  await tx.delete(providerConfigurations);
+  await tx.delete(secretReferences);
+  await tx.delete(tenantDomains);
+  await tx.delete(tenantLimits);
+
+  await tx.insert(tenantDomains).values([
+    { tenantId: acmeId, domain: 'logistics', mode: 'ocean' },
+    { tenantId: northstarId, domain: 'logistics', mode: 'ocean' },
+  ]);
+
+  await tx.insert(secretReferences).values([
+    {
+      id: acmeSecretId,
+      tenantId: acmeId,
+      name: 'msc-dummy-credentials',
+      opaqueRef: 'volume://acme-europe/msc',
+    },
+    {
+      id: northstarSecretId,
+      tenantId: northstarId,
+      name: 'maersk-dummy-credentials',
+      opaqueRef: 'volume://northstar-logistics/maersk',
+    },
+  ]);
+
+  await tx.insert(providerConfigurations).values([
+    {
+      id: acmeProviderId,
+      tenantId: acmeId,
+      providerCode: 'msc',
+      displayName: 'MSC dummy connector',
+      referenceTypes: ['container', 'booking'],
+      secretReferenceId: acmeSecretId,
+    },
+    {
+      id: northstarProviderId,
+      tenantId: northstarId,
+      providerCode: 'maersk',
+      displayName: 'Maersk dummy connector',
+      referenceTypes: ['container'],
+      secretReferenceId: northstarSecretId,
+    },
+  ]);
+
+  await tx.insert(crawlSchedules).values([
+    { tenantId: acmeId, providerId: acmeProviderId, cron: '*/15 * * * *', timezone: 'UTC' },
+    {
+      tenantId: northstarId,
+      providerId: northstarProviderId,
+      cron: '*/30 * * * *',
+      timezone: 'Europe/Copenhagen',
+    },
+  ]);
+
+  await tx.insert(tenantLimits).values([
+    { tenantId: acmeId, requestsPerMinute: 24, concurrentCrawls: 4 },
+    { tenantId: northstarId, requestsPerMinute: 12, concurrentCrawls: 2 },
+  ]);
+
+  await tx.insert(deliveryDestinations).values([
+    { tenantId: acmeId, name: 'Acme Europe download', type: 'download', format: 'json' },
+    {
+      tenantId: northstarId,
+      name: 'Northstar Logistics webhook',
+      type: 'webhook',
+      endpoint: 'http://dummy-boundary:8100/webhooks/northstar',
+      format: 'xml',
+    },
+  ]);
+
+  await tx.insert(invitations).values({
+    tenantId: acmeId,
+    email: 'new.operator@example.test',
+    role: 'tenant_operator',
+    invitedBy: dummyUsers[2].id,
+    expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+  });
+
+  await tx.insert(auditEvents).values([
+    {
+      tenantId: acmeId,
+      actorUserId: dummyUsers[2].id,
+      action: 'provider.configured',
+      resourceType: 'provider',
+      resourceId: acmeProviderId,
+      metadata: { providerCode: 'msc', synthetic: true },
+    },
+    {
+      tenantId: northstarId,
+      actorUserId: dummyUsers[0].id,
+      action: 'provider.configured',
+      resourceType: 'provider',
+      resourceId: northstarProviderId,
+      metadata: { providerCode: 'maersk', synthetic: true },
+    },
   ]);
 });
 
