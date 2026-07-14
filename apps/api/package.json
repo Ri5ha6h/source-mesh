@@ -1,0 +1,40 @@
+{
+  "name": "@source-mesh/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --packages=external --alias:@source-mesh/contracts=../../packages/contracts/src/index.ts --alias:@source-mesh/database=../../packages/database/src/index.ts --alias:@source-mesh/observability=../../packages/observability/src/index.ts --outfile=dist/main.js --sourcemap",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run test/unit",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:",
+    "@nestjs/config": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-fastify": "catalog:",
+    "@source-mesh/contracts": "workspace:*",
+    "@source-mesh/database": "workspace:*",
+    "@source-mesh/observability": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "fastify": "catalog:",
+    "jose": "catalog:",
+    "pg": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "catalog:",
+    "@types/node": "catalog:",
+    "@types/supertest": "catalog:",
+    "supertest": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "realm": "source-mesh",
+  "enabled": true,
+  "displayName": "Source Mesh Local POC",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "clients": [
+    {
+      "clientId": "source-mesh-web",
+      "name": "Source Mesh Web",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dummy-source-mesh-client-secret",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/auth/callback"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/login"
+      },
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "source-mesh-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "source-mesh-web",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "username": "avery-admin",
+      "email": "avery.admin@example.test",
+      "firstName": "Avery",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "source-mesh", "temporary": false }]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "username": "rina-approver",
+      "email": "rina.approver@example.test",
+      "firstName": "Rina",
+      "lastName": "Approver",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "source-mesh", "temporary": false }]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000003",
+      "username": "tomas-admin",
+      "email": "tomas.admin@example.test",
+      "firstName": "Tomas",
+      "lastName": "Tenant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "source-mesh", "temporary": false }]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000004",
+      "username": "priya-operator",
+      "email": "priya.operator@example.test",
+      "firstName": "Priya",
+      "lastName": "Operator",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "source-mesh", "temporary": false }]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000005",
+      "username": "victor-viewer",
+      "email": "victor.viewer@example.test",
+      "firstName": "Victor",
+      "lastName": "Viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "source-mesh", "temporary": false }]
+    }
+  ]
+}
