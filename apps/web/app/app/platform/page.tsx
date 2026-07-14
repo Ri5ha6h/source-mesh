@@ -1,45 +1,71 @@
+import Link from 'next/link';
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  buttonVariants,
+} from '@source-mesh/ui';
 import { redirect } from 'next/navigation';
 import { getSession } from '../../../lib/api';
 
-export default async function PlatformPage() {
+export default async function PlatformOverviewPage() {
   const session = await getSession();
-  if (session.platformRoles.length === 0) redirect('/app');
+  if (session.platformRoles.length === 0) redirect('/app?reason=platform-unavailable');
   const capabilities = session.capabilitiesByContext.platform ?? [];
   return (
-    <section className="workspace-page">
-      <p className="eyebrow">Platform context</p>
-      <h1>Platform operations</h1>
-      <p className="lede">
-        Tenant lifecycle, catalog, audit, and approvals remain separate capabilities—even when one
-        person holds multiple roles.
-      </p>
-      <div className="metric-grid">
-        <article>
-          <small>PLATFORM ROLES</small>
-          <strong>{session.platformRoles.length}</strong>
-          <span>{session.platformRoles.join(' · ')}</span>
-        </article>
-        <article>
-          <small>AUTHORIZED WORKSPACES</small>
-          <strong>{session.memberships.length}</strong>
-          <span>Visible memberships only</span>
-        </article>
-        <article>
-          <small>MAPPING PUBLICATION</small>
-          <strong>{capabilities.includes('mapping:publish') ? 'Allowed' : 'Not allowed'}</strong>
-          <span>
-            {capabilities.includes('mapping:publish')
-              ? 'Named approver capability'
-              : 'Platform Admin does not inherit it'}
-          </span>
-        </article>
+    <section className="workspace-page compact-page">
+      <p className="eyebrow">Platform context · explicit authority</p>
+      <div className="page-heading">
+        <div>
+          <h1>Platform operations</h1>
+          <p className="lede">Choose the control-plane responsibility assigned to this identity.</p>
+        </div>
+        <Badge>
+          {session.platformRoles.map((role) => role.replace('platform_', '')).join(' + ')}
+        </Badge>
       </div>
-      <div className="empty-state">
-        <span>PHASE 01</span>
-        <h2>Authority is ready. Operations arrive next.</h2>
-        <p>
-          Tenant onboarding is intentionally held for Phase 2 after this foundation passes review.
-        </p>
+
+      <p className="boundary-banner" role="status">
+        <strong>Publication boundary:</strong>{' '}
+        {capabilities.includes('mapping:publish')
+          ? 'This named Platform Approver may review and publish mappings.'
+          : 'Platform Admin does not inherit mapping publication.'}
+      </p>
+
+      <div className="route-card-grid two-column">
+        {capabilities.includes('tenant:manage') ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant onboarding</CardTitle>
+              <CardDescription>
+                Create fictional workspaces and control their lifecycle.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link className={buttonVariants()} href="/app/platform/onboarding">
+                Open onboarding
+              </Link>
+            </CardContent>
+          </Card>
+        ) : null}
+        {capabilities.includes('mapping:review') ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Mapping approvals</CardTitle>
+              <CardDescription>
+                Review authority is visible now; publication arrives in Phase 4.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link className={buttonVariants()} href="/app/platform/approvals">
+                Open approvals
+              </Link>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </section>
   );

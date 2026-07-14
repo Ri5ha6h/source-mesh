@@ -39,12 +39,15 @@ test('context resolution and capability boundaries survive deep links', async ({
 }) => {
   await login(page, 'priya-operator');
   await expect(page.getByRole('heading', { name: 'Where are you working?' })).toBeVisible();
-  await expect(page.getByText('Approvals enabled')).toBeVisible();
-  await page.getByRole('link', { name: 'Acme Europe', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Platform operations/ })).toBeVisible();
+  await page.getByRole('link', { name: /Acme Europe/ }).click();
   await expect(page.getByRole('heading', { name: 'Acme Europe' })).toBeVisible();
-  await expect(page.getByText('Acme synthetic workspace is isolated.')).toBeVisible();
-  await page.goto('/app/workspaces/northstar-logistics');
-  await expect(page.getByRole('heading', { name: 'Northstar Logistics' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Switch workspace' })).toBeVisible();
+  await page.getByRole('link', { name: 'Carriers', exact: true }).click();
+  await expect(page.getByText('MSC dummy connector')).toBeVisible();
+  await page.goto('/app/workspaces/northstar-logistics/carriers');
+  await expect(page.getByRole('heading', { name: 'Carriers' })).toBeVisible();
+  await expect(page.getByText('Maersk dummy connector')).toBeVisible();
   await page.screenshot({ path: `${screenshotDirectory}/workspace-desktop.png`, fullPage: true });
 
   await context.clearCookies();
@@ -52,13 +55,14 @@ test('context resolution and capability boundaries survive deep links', async ({
   await expect(page.getByRole('heading', { name: 'Northstar Logistics' })).toBeVisible();
   await page.goto('/app/workspaces/acme-europe');
   await expect(page.getByRole('heading', { name: 'Northstar Logistics' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add references in Phase 3' })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Configuration' })).not.toBeVisible();
 
   await context.clearCookies();
   await login(page, 'avery-admin');
   await expect(page.getByRole('heading', { name: 'Platform operations' })).toBeVisible();
-  await expect(page.getByText('Not allowed', { exact: true })).toBeVisible();
-  await expect(page.getByText('Platform Admin does not inherit it')).toBeVisible();
+  await expect(
+    page.getByText('Platform Admin does not inherit mapping publication.'),
+  ).toBeVisible();
   await page.screenshot({
     path: `${screenshotDirectory}/platform-admin-desktop.png`,
     fullPage: true,

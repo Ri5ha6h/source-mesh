@@ -1,6 +1,14 @@
 import { Schema } from 'effect';
 import { redirect } from 'next/navigation';
-import { Session, type Session as SessionType } from '@source-mesh/contracts';
+import {
+  Session,
+  WorkspaceConfiguration,
+  type ConfigureWorkspaceRequest,
+  type CreateTenantRequest,
+  type InviteMemberRequest,
+  type Session as SessionType,
+  type WorkspaceConfiguration as WorkspaceConfigurationType,
+} from '@source-mesh/contracts';
 import { getTokenSession } from './auth';
 
 export async function getSession(): Promise<SessionType> {
@@ -15,20 +23,64 @@ export async function getSession(): Promise<SessionType> {
   return Schema.decodeUnknownSync(Session)(await response.json());
 }
 
-export async function getWorkspaceSummary(tenantSlug: string) {
+export async function getTenantDirectory() {
+  return apiJson<{
+    actor: string;
+    tenants: { id: string; slug: string; name: string; status: string }[];
+  }>('/v1/platform/tenants');
+}
+
+export async function createTenant(input: CreateTenantRequest) {
+  return apiJson('/v1/platform/tenants', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export async function transitionTenant(tenantSlug: string, status: 'active' | 'suspended') {
+  return apiJson(`/v1/platform/tenants/${encodeURIComponent(tenantSlug)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function getWorkspaceConfiguration(
+  tenantSlug: string,
+): Promise<WorkspaceConfigurationType> {
+  const value = await apiJson(`/v1/workspaces/${encodeURIComponent(tenantSlug)}/configuration`);
+  return Schema.decodeUnknownSync(WorkspaceConfiguration)(value);
+}
+
+export async function configureWorkspace(tenantSlug: string, input: ConfigureWorkspaceRequest) {
+  return apiJson(`/v1/workspaces/${encodeURIComponent(tenantSlug)}/configuration`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function inviteMember(tenantSlug: string, input: InviteMemberRequest) {
+  return apiJson(`/v1/workspaces/${encodeURIComponent(tenantSlug)}/invitations`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+async function apiJson<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getTokenSession();
   if (!token) redirect('/login?reason=expired');
-  const response = await fetchWithTimeout(
-    `${requireEnvironment('API_INTERNAL_URL')}/v1/workspaces/${encodeURIComponent(tenantSlug)}/summary`,
-    { headers: { authorization: `Bearer ${token.accessToken}` }, cache: 'no-store' },
-  );
+  const response = await fetchWithTimeout(`${requireEnvironment('API_INTERNAL_URL')}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${token.accessToken}`,
+      'content-type': 'application/json',
+      ...init.headers,
+    },
+    cache: 'no-store',
+  });
   if (response.status === 401) redirect('/login?reason=expired');
   if (response.status === 404) redirect('/app?reason=workspace-unavailable');
-  if (!response.ok) throw new Error('Unable to load workspace context');
-  return response.json() as Promise<{
-    tenant: { id: string; slug: string; name: string };
-    notes: { id: string; message: string }[];
-  }>;
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? 'Source Mesh API request failed');
+  }
+  return response.json() as Promise<T>;
 }
 
 async function fetchWithTimeout(input: string, init: RequestInit) {

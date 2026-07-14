@@ -18,11 +18,13 @@ export default async function ContextResolverPage({
 
   return (
     <section className="chooser">
-      <p className="eyebrow">Authorized contexts</p>
+      <p className="eyebrow">Available workspaces</p>
       <h1>Where are you working?</h1>
       {params.reason ? (
         <p className="notice" role="status">
-          That workspace is no longer available. Choose an authorized context.
+          {params.reason === 'platform-unavailable'
+            ? 'Platform operations are not assigned to this identity. Choose an authorized workspace.'
+            : 'That workspace is no longer available. Choose where to work.'}
         </p>
       ) : null}
       <div className="context-grid">

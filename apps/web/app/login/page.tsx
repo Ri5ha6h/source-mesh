@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button, Card, SourceMeshBrand } from '@source-mesh/ui';
+import { buttonVariants, Card, SourceMeshBrand } from '@source-mesh/ui';
 
 const accounts = [
   ['avery-admin', 'Platform Admin', 'Tenant lifecycle; cannot publish mappings'],
@@ -50,9 +50,9 @@ export default async function LoginPage({
           <p>
             Every account uses the dummy password <code>source-mesh</code>.
           </p>
-          <Button asChild size="wide">
-            <Link href="/auth/login">Continue to Keycloak</Link>
-          </Button>
+          <Link className={buttonVariants({ size: 'wide' })} href="/auth/login">
+            Continue to Keycloak
+          </Link>
           <div className="account-list">
             {accounts.map(([user, role, description]) => (
               <article key={user}>

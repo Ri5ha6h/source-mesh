@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button, SourceMeshBrand } from '@source-mesh/ui';
+import { buttonVariants, SourceMeshBrand } from '@source-mesh/ui';
 
 const stages = [
   ['01 · INGRESS', 'Reference submitted', 'Synthetic input accepted'],
@@ -20,9 +20,9 @@ export default function HomePage() {
           <a href="#lineage">Lineage</a>
           <a href="#control">Control</a>
         </nav>
-        <Button asChild variant="ghost">
-          <Link href="/login">Sign in</Link>
-        </Button>
+        <Link className={buttonVariants({ variant: 'ghost' })} href="/login">
+          Sign in
+        </Link>
       </header>
       <section className="hero shell">
         <p className="eyebrow">Managed data operations</p>
@@ -32,12 +32,12 @@ export default function HomePage() {
           with another.
         </p>
         <div className="hero-actions">
-          <Button asChild>
-            <a href="mailto:hello@example.test">Book a demo</a>
-          </Button>
-          <Button asChild variant="outline">
-            <a href="#lineage">Trace the pipeline</a>
-          </Button>
+          <a className={buttonVariants()} href="mailto:hello@example.test">
+            Book a demo
+          </a>
+          <a className={buttonVariants({ variant: 'outline' })} href="#lineage">
+            Trace the pipeline
+          </a>
         </div>
         <div className="lineage" id="lineage">
           {stages.map(([label, title, detail], index) => (
