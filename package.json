@@ -1,0 +1,33 @@
+{
+  "name": "source-mesh",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "dev": "pnpm -r --parallel --if-present dev",
+    "format:check": "oxfmt --check .",
+    "format:write": "oxfmt --write .",
+    "lint": "oxlint --deny-warnings .",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "vitest run packages/contracts/test apps/api/test/unit",
+    "test:integration": "vitest run apps/api/test/integration",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @source-mesh/database generate",
+    "db:migrate": "pnpm --filter @source-mesh/database migrate",
+    "db:seed": "pnpm --filter @source-mesh/database seed"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.0",
+    "esbuild": "0.28.1",
+    "oxfmt": "0.58.0",
+    "oxlint": "1.73.0",
+    "tsx": "4.23.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=24.0.0 <27",
+    "pnpm": "11.10.0"
+  },
+  "packageManager": "pnpm@11.10.0"
+}

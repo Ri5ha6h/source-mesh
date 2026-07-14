@@ -1,0 +1,59 @@
+#!/bin/sh
+set -eu
+
+profiles="--profile infra --profile app --profile dummy"
+
+require_docker() {
+  command -v docker >/dev/null 2>&1 || { echo "Docker is required." >&2; exit 1; }
+  docker compose version >/dev/null 2>&1 || { echo "Docker Compose v2 is required." >&2; exit 1; }
+}
+
+bootstrap() {
+  docker compose $profiles build
+  docker compose --profile infra up -d --wait postgres redis minio keycloak
+  docker compose $profiles run --rm api pnpm db:migrate
+  docker compose $profiles run --rm api pnpm db:seed
+  docker compose $profiles up -d --wait api web worker-python dummy-boundary
+}
+
+case "${1:-}" in
+  bootstrap) require_docker; bootstrap ;;
+  up) require_docker; docker compose $profiles up -d --wait ;;
+  seed) require_docker; docker compose $profiles run --rm api pnpm db:seed ;;
+  test)
+    require_docker
+    docker compose --profile test build node-tests python-worker-tests dummy-boundary-tests browser-tests
+    docker compose --profile test run --rm node-tests pnpm format:check
+    docker compose --profile test run --rm node-tests pnpm lint
+    docker compose --profile test run --rm node-tests pnpm typecheck
+    docker compose --profile test run --rm node-tests pnpm test
+    docker compose --profile test run --rm python-worker-tests
+    docker compose --profile test run --rm dummy-boundary-tests
+    docker compose --profile test run --rm browser-tests
+    ;;
+  audit)
+    require_docker
+    docker build --target api-production -t source-mesh-api:phase1 .
+    docker build --target web-production -t source-mesh-web:phase1 .
+    docker build --file apps/worker-python/Dockerfile --target production -t source-mesh-worker:phase1 .
+    docker build --file apps/dummy-services/Dockerfile --target production -t source-mesh-dummy:phase1 .
+    docker compose --profile security build dependency-audit
+    docker compose --profile security run --rm dependency-audit
+    docker compose --profile security run --rm secret-scan
+    docker compose --profile security run --rm filesystem-scan
+    docker compose --profile security run --rm image-scan
+    docker compose --profile security run --rm sbom
+    ;;
+  demo)
+    require_docker
+    docker compose $profiles ps
+    echo "Web:      http://localhost:3000"
+    echo "Keycloak: http://localhost:8080"
+    echo "MinIO:    http://localhost:9001"
+    echo "Dummy boundary: http://localhost:8100/health"
+    echo "Dummy login password: source-mesh"
+    ;;
+  down) require_docker; docker compose $profiles down ;;
+  reset) require_docker; docker compose $profiles down --volumes --remove-orphans; bootstrap ;;
+  *) echo "Usage: ./scripts/poc {bootstrap|up|seed|test|audit|demo|down|reset}" >&2; exit 2 ;;
+esac

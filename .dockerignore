@@ -1,0 +1,17 @@
+.git
+.github
+.next
+.poc
+artifacts
+coverage
+design
+dist
+node_modules
+**/node_modules
+phase
+playwright-report
+research
+test-results
+**/__pycache__
+**/.pytest_cache
+**/.venv

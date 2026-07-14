@@ -1,0 +1,303 @@
+name: source-mesh
+
+x-app-environment: &app-environment
+  APP_PUBLIC_URL: http://localhost:3000
+  DATABASE_URL: postgresql://source_mesh_app:dummy-app-only@postgres:5432/source_mesh
+  MIGRATION_DATABASE_URL: postgresql://source_mesh:dummy-local-only@postgres:5432/source_mesh
+  KEYCLOAK_ISSUER_INTERNAL: http://keycloak:8080/realms/source-mesh
+  KEYCLOAK_ISSUER_PUBLIC: http://localhost:8080/realms/source-mesh
+  OIDC_CLIENT_ID: source-mesh-web
+  OIDC_CLIENT_SECRET: dummy-source-mesh-client-secret
+  SESSION_SECRET: replace-with-at-least-32-dummy-characters
+  API_INTERNAL_URL: http://api:4000
+  NEXT_PUBLIC_API_URL: http://localhost:4000
+
+services:
+  postgres:
+    image: postgres:18-bookworm@sha256:b403bafdebf3f7027c15ceefbfc46899f575096549f549650b3fb2ab9a6a6930
+    profiles: [infra, test]
+    environment:
+      POSTGRES_DB: source_mesh
+      POSTGRES_USER: source_mesh
+      POSTGRES_PASSWORD: dummy-local-only
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/00-roles.sql:/docker-entrypoint-initdb.d/00-roles.sql:ro
+    ports:
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U source_mesh -d source_mesh']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    security_opt: [no-new-privileges:true]
+
+  redis:
+    image: redis:8-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78
+    profiles: [infra, test]
+    command: [redis-server, --appendonly, 'yes', --requirepass, dummy-redis-only]
+    volumes:
+      - redis-data:/data
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: [CMD, redis-cli, -a, dummy-redis-only, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    security_opt: [no-new-privileges:true]
+
+  minio:
+    image: minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    profiles: [infra, test]
+    command: [server, /data, --console-address, ':9001']
+    environment:
+      MINIO_ROOT_USER: source-mesh-dummy
+      MINIO_ROOT_PASSWORD: dummy-minio-password
+    volumes:
+      - minio-data:/data
+    ports:
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+    healthcheck:
+      test: [CMD, mc, ready, local]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    security_opt: [no-new-privileges:true]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5@sha256:45ae20191531eb608ddb0b775d012b40d3e4f942697f3214694887dd7c108d13
+    profiles: [infra, test]
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: dummy-admin-only
+      KC_HEALTH_ENABLED: 'true'
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: 'true'
+      KC_HTTP_ENABLED: 'true'
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./infra/keycloak/source-mesh-realm.json:/opt/keycloak/data/import/source-mesh-realm.json:ro
+    ports:
+      - '127.0.0.1:8080:8080'
+    healthcheck:
+      test: [CMD-SHELL, 'exec 3<>/dev/tcp/127.0.0.1/9000']
+      interval: 5s
+      timeout: 4s
+      retries: 40
+    security_opt: [no-new-privileges:true]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    profiles: [app, test]
+    command: [pnpm, --filter, '@source-mesh/api', dev]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    volumes:
+      - ./apps/api/src:/workspace/apps/api/src
+      - ./apps/api/test:/workspace/apps/api/test
+      - ./packages/contracts/src:/workspace/packages/contracts/src
+      - ./packages/database/drizzle:/workspace/packages/database/drizzle
+      - ./packages/database/src:/workspace/packages/database/src
+    ports:
+      - '127.0.0.1:4000:4000'
+    healthcheck:
+      test:
+        [CMD, node, -e, "fetch('http://localhost:4000/health').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    security_opt: [no-new-privileges:true]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    profiles: [app, test]
+    command: [pnpm, --filter, '@source-mesh/web', dev]
+    environment:
+      <<: *app-environment
+    depends_on:
+      api: { condition: service_healthy }
+    volumes:
+      - ./apps/web/app:/workspace/apps/web/app
+      - ./apps/web/lib:/workspace/apps/web/lib
+      - ./packages/ui/src:/workspace/packages/ui/src
+    ports:
+      - '127.0.0.1:3000:3000'
+    healthcheck:
+      test:
+        [CMD, node, -e, "fetch('http://localhost:3000/login').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    security_opt: [no-new-privileges:true]
+
+  worker-python:
+    build:
+      context: .
+      dockerfile: apps/worker-python/Dockerfile
+      target: development
+    profiles: [app, test]
+    volumes:
+      - ./apps/worker-python/worker.py:/app/worker.py:ro
+    ports:
+      - '127.0.0.1:8000:8000'
+    healthcheck:
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    security_opt: [no-new-privileges:true]
+
+  dummy-boundary:
+    build:
+      context: .
+      dockerfile: apps/dummy-services/Dockerfile
+      target: production
+    profiles: [dummy, test]
+    ports:
+      - '127.0.0.1:8100:8100'
+    healthcheck:
+      test:
+        [
+          CMD,
+          /usr/bin/python,
+          -c,
+          "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    security_opt: [no-new-privileges:true]
+
+  node-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    profiles: [test]
+    environment:
+      <<: *app-environment
+    command: [pnpm, test]
+    depends_on:
+      postgres: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    security_opt: [no-new-privileges:true]
+
+  python-worker-tests:
+    build:
+      context: .
+      dockerfile: apps/worker-python/Dockerfile
+      target: test
+    profiles: [test]
+    command: [python, -m, py_compile, worker.py]
+    security_opt: [no-new-privileges:true]
+
+  dummy-boundary-tests:
+    build:
+      context: .
+      dockerfile: apps/dummy-services/Dockerfile
+      target: test
+    profiles: [test]
+    command: [python, -m, py_compile, server.py]
+    security_opt: [no-new-privileges:true]
+
+  browser-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: e2e
+    profiles: [test]
+    network_mode: host
+    depends_on:
+      web: { condition: service_healthy }
+      api: { condition: service_healthy }
+    volumes:
+      - ./artifacts:/workspace/artifacts
+    security_opt: [no-new-privileges:true]
+
+  dependency-audit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    profiles: [security]
+    command: [pnpm, audit, --audit-level, low]
+    security_opt: [no-new-privileges:true]
+
+  secret-scan:
+    image: zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    profiles: [security]
+    command:
+      [
+        detect,
+        --source=/workspace,
+        --no-git,
+        --redact,
+        --exit-code=1,
+        --config=/workspace/.gitleaks.toml,
+      ]
+    volumes:
+      - ./:/workspace:ro
+    security_opt: [no-new-privileges:true]
+
+  filesystem-scan:
+    image: aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+    profiles: [security]
+    command:
+      - fs
+      - --scanners=vuln,misconfig,secret
+      - --severity=UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+      - --exit-code=1
+      - --skip-dirs=.git,node_modules,artifacts,design,research,phase
+      - /workspace
+    volumes:
+      - ./:/workspace:ro
+      - trivy-cache:/root/.cache/trivy
+    security_opt: [no-new-privileges:true]
+
+  image-scan:
+    image: aquasec/trivy:0.70.0@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+    profiles: [security]
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - >-
+        for image in source-mesh-api:phase1 source-mesh-web:phase1 source-mesh-worker:phase1 source-mesh-dummy:phase1; do
+          trivy image --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 1 "$$image";
+        done
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - trivy-cache:/root/.cache/trivy
+    security_opt: [no-new-privileges:true]
+
+  sbom:
+    image: anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6
+    profiles: [security]
+    command: [dir:/workspace, -o, spdx-json=/artifacts/source-mesh-phase-1.spdx.json]
+    volumes:
+      - ./:/workspace:ro
+      - ./artifacts:/artifacts
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  keycloak-data:
+  trivy-cache:
